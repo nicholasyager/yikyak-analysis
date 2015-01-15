@@ -8,6 +8,7 @@ Create a Markov chain from a corpra of text, and generate some text.
 
 import argparse
 import csv
+import random
 
 def loadCorpus(path):
     """
@@ -26,7 +27,6 @@ def loadCorpus(path):
         for row in reader:
             sentence = row[1].rstrip().lower()
             corpus.append(sentence)
-            print(sentence)
 
     return corpus
 
@@ -43,10 +43,42 @@ def createNGram(corpus, n):
                 key is a tuple of n words, with a probability value.
     """
 
-    #for document in corpus:
+    nGrams = {}
+
+    for document in corpus:
+
+        words = document.split(" ")
+
+        for index, word in enumerate(words):
+            # Do not go past the end of the sentence.
+            if index > len(words)-n:
+                break
+
+            gramList = []
+
+            for jump in range(n):
+                gramList.append(words[index+jump])
+            gram = tuple(gramList)
+
+            if gram in nGrams:
+                nGrams[gram] += 1
+            else:
+                nGrams[gram] = 1
         
 
-    pass
+    return nGrams
+
+def weightedRandom(probList):
+    """
+    Return the index picked from a list of probabilities.
+    """
+    sum = 0
+    reference = random.randint(0,1)
+    for index, prob in enumerate(probList):
+        sum += prob
+        if sum >= reference:
+            return index
+    return len(probList)-1
 
 def main(path,n):
     """
@@ -54,10 +86,62 @@ def main(path,n):
     probable sentance.
     """
 
-    corpus = loadCorpus(args.path)
-    ngrams = createNGram(corpus, args.n)
+    punctuation = [".","!","?",")","("]
 
-    print(ngrams)
+    corpus = loadCorpus(args.path)
+    print("Loaded a corpus of {0} documents.".format(len(corpus)))
+    nGrams = createNGram(corpus, args.n)
+    gramList = list(nGrams.keys())
+    print("Generated {0} {1}-grams.".format(len(nGrams),n))
+
+    string = ""
+    maxString = ""
+
+    # Select an n-gram to start with
+    currentGram = random.choice(gramList)
+    oldGram = tuple(["" for index in range(n)])
+    totalProbability = 1
+    currentProbability = 1
+    for attempt in range(1000):
+        
+        # Find all related n-grams
+        possibilities = [gram for gram in gramList if gram[0:n-1] == currentGram[0:n-1]]
+   
+        if len(possibilities) == 0:
+            string +=  " " +" ".join(currentGram[1:])
+            if totalProbability < currentProbability:
+                currentProbability = totalProbability
+                maxString = string
+            currentGram = random.choice(gramList)
+            string = currentGram[0]
+            totalProbability =1
+            continue
+
+        totalCounts = 0
+        counts = []
+        probabilities = []
+
+        for key in possibilities:
+            count = nGrams[key]
+            totalCounts += count
+            counts.append(count)
+
+        for count in counts:
+            probabilities.append(count/totalCounts)
+       
+        # Pick a gram to continue with
+        nextIndex = weightedRandom(probabilities)
+        totalProbability *= probabilities[nextIndex]
+        oldGram = currentGram
+        currentGramList = [word for index, word in enumerate(possibilities[nextIndex]) if  0 < index <= n-1]
+        currentGramPad = [""]
+        currentGramList.extend(currentGramPad)
+        currentGram = tuple(currentGramList)
+        string += " " + currentGram[0]
+        
+
+    print(maxString, currentProbability)
+
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate a possible sequence of '+
