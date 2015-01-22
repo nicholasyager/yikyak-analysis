@@ -10,34 +10,25 @@ for (index in 1:length(packages)){
   }
 }
 
-data <- read.csv("allposts_fixed.csv",header=F)
+data <- read.csv("savedyaks.csv",header=F,stringsAsFactors=F)
 names(data) <- c("ID","string","score")
+data <- unique(data)
 
-# Trim to exceptional posts
-par(mar=c(5.1,4.1,4.1,2.1))
-hist(data$score,breaks=500)
-medianScore = median(data$score)
-abline(v=medianScore,col="red")
-stddev = sd(data$score)
-minimumScore =  medianScore + (medianScore*3)
-abline(v=minimumScore,col="blue")
-
-sampleRows <- which(data$score >= minimumScore)
-data <- data[sampleRows,]
+data$score <- as.numeric(data$score,na.rm=T)
 
 corpus <- VCorpus(VectorSource(data$string))
-inspect(corpus)
+#inspect(corpus)
 # Remove punctionation and convert to lowercase
 corpus <- tm_map(corpus, stripWhitespace)
 corpus <- tm_map(corpus,content_transformer(tolower))
+corpus <- tm_map(corpus, removeWords, append(stopwords("english"),c("just", "like", "get")) )
 corpus <- tm_map(corpus,removePunctuation)
-corpus <- tm_map(corpus, removeWords, stopwords("english"))
 
-#corpusBackup <- corpus
-# Remove stems
-#corpus <- tm_map(corpus,stemDocument)
-# Restem to normalize words
-#corpus <- tm_map(corpus,stemCompletion, dictionary=corpusBackup)
+# corpusBackup <- corpus
+# # Remove stems
+# corpus <- tm_map(corpus,stemDocument)
+# # Restem to normalize words
+# corpus <- tm_map(corpus,stemCompletion, dictionary=corpusBackup)
 
 
 documentMatrix <- TermDocumentMatrix(corpus, control = list(minWordLength = 1))
