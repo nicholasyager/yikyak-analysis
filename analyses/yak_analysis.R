@@ -43,11 +43,16 @@ m <- as.matrix(commonWords)
 v <- sort(rowSums(m), decreasing=T)
 documentNames <- names(v)
 d <- data.frame(word=documentNames, freq=v)
-png("wordcloud%03d.png",width=500, height=500)
-wordcloud(d$word, d$freq, min.freq=3, col=colorfunc(length(d$word)),random.order=F,
-          ordered.colors=T,scale=c(5,0.5))
+#png("wordcloud%03d.png",width=500, height=500)
+#wordcloud(d$word, d$freq, min.freq=3, col=colorfunc(length(d$word)),random.order=F,
+#          ordered.colors=T,scale=c(5,0.5))
+#dev.off()
+png("wordcloud_freq-%03d.png",width=500, height=500)
+wordcloud(d$word[1:400],
+          d$freq[1:400],
+          min.freq=1, col=colorfunc(400),
+          ordered.colors=T,scale=c(4,0.5),random.order=F)
 dev.off()
-
 # tf-idf ----------------------------------
 
 matrix = as.matrix(documentMatrix)
@@ -80,10 +85,10 @@ for (documentIndex in 1:ncol(matrix)){
     names(documentTFIDFs) <- c("score")
     sortedDocument = order(documentTFIDFs$score, decreasing = T)
     print(paste(rownames(documentTFIDFs)[sortedDocument[1]],documentTFIDFs[sortedDocument[1],]))
-    
+
     keyword = rownames(documentTFIDFs)[sortedDocument[1]]
     score =  documentTFIDFs[sortedDocument[1],1]
-    
+
     if (keyword %in% keywords) {
       index = which(keywords == keyword)
       keywordScores[index] = keywordScores[index] + 1
@@ -91,14 +96,44 @@ for (documentIndex in 1:ncol(matrix)){
       keywords = append(keywords, keyword)
       keywordScores  = append(keywordScores, 1)
     }
-   
+
   }
 }
 keywordData = data.frame(keyword = keywords, score=keywordScores)
 orderedIndices = order(keywordData$score, decreasing = T)
 #samples = sort(sample(orderedIndices,400),decreasing=F)
 samples = orderedIndices[1:400]
-wordcloud(keywordData$keyword[samples], 
-          keywordData$score[samples], 
+png("wordcloud_tfidf-%03d.png",width=500, height=500)
+wordcloud(keywordData$keyword[samples],
+          keywordData$score[samples],
           min.freq=1, col=colorfunc(length(samples)),
-          ordered.colors=T,scale=c(3,0.1),random.order=F)
+          ordered.colors=T,scale=c(3,0.5),random.order=F)
+dev.off()
+
+# General Stats ----------------------------------------------------------------
+
+# Load the Yaks and label accordingly
+data <- read.csv("savedyaks.csv",header=T,stringsAsFactors=F)
+names(data) <- c("ID","string","score")
+
+# Calculate the number of characters per Yak
+lengths <- sapply(data$string,nchar)
+
+# Calculate the number of words per Yak
+words <- sapply(sapply(data$string, strsplit, " "), length)
+
+par(mfrow=c(2,1))
+probs1 <- hist(lengths,probability = T, breaks=50,
+     main="Number of Characters per Geneseo Yak",
+     xlab="Number of Characters")
+colors <- rep("white", length(probs1$mids))
+colors[which(probs1$density == max(probs1$density))] = "blue"
+probs1 <- hist(lengths,probability = T, breaks=50,col=colors,
+               main="Number of Characters per Geneseo Yak",
+               xlab="Number of Characters")
+
+hist(words,probability = T,breaks=50,
+     main="Number of Words per Geneseo Yak",
+     xlab="Number of Words")
+abline(v=median(words),col="blue")
+par(mfrow=c(1,1))
