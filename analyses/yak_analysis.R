@@ -10,7 +10,7 @@ for (index in 1:length(packages)){
   }
 }
 
-data <- read.csv("savedyaks.csv",header=F,stringsAsFactors=F)
+data <- read.csv("savedyaks.csv",header=T,stringsAsFactors=F)
 names(data) <- c("ID","string","score")
 data <- unique(data)
 
@@ -24,47 +24,81 @@ corpus <- tm_map(corpus,content_transformer(tolower))
 corpus <- tm_map(corpus, removeWords, append(stopwords("english"),c("just", "like", "get")) )
 corpus <- tm_map(corpus,removePunctuation)
 
-# corpusBackup <- corpus
+#corpusDictionary <- corpus
 # # Remove stems
-# corpus <- tm_map(corpus,stemDocument)
+#corpus <- tm_map(corpus,stemDocument)
 # # Restem to normalize words
-# corpus <- tm_map(corpus,stemCompletion, dictionary=corpusBackup)
+#corpus <- tm_map(corpus,stemCompletion, dictionary=corpusDictionary)
 
 
 documentMatrix <- TermDocumentMatrix(corpus, control = list(minWordLength = 1))
 #inspect(documentMatrix)
 
-commonWords <- removeSparseTerms(x=documentMatrix, sparse=0.995)
-colorfunc <- colorRampPalette(c("#345290","#7f8182","#a7a9ac","#86c1ea"))
+commonWords <- removeSparseTerms(x=documentMatrix, sparse=0.999)
+colorfunc <- colorRampPalette(c("#345290","#86c1ea","#a7a9ac"))
+
+#commonWords <- documentMatrix
 
 m <- as.matrix(commonWords)
 v <- sort(rowSums(m), decreasing=T)
 documentNames <- names(v)
 d <- data.frame(word=documentNames, freq=v)
-wordcloud(d$word, d$freq, min.freq=1, col=colorfunc(length(d$word)),
-          ordered.colors=T,scale=c(5,0.75))
+png("wordcloud%03d.png",width=500, height=500)
+wordcloud(d$word, d$freq, min.freq=3, col=colorfunc(length(d$word)),random.order=F,
+          ordered.colors=T,scale=c(5,0.5))
+dev.off()
 
+# tf-idf ----------------------------------
 
+matrix = as.matrix(documentMatrix)
+idfMatrix = matrix
+idfMatrix[which(idfMatrix > 0)] = 1
+idf = log(ncol(matrix)/sort(rowSums(idfMatrix), decreasing=F))
+wordNames <- names(idf)
+d2 <- data.frame(word=wordNames, freq=idf)
+samples = sort(sample(1:nrow(d2),300),decreasing=F)
+wordcloud(d2$word[samples], d2$freq[samples], min.freq=1, col=colorfunc(length(samples)),
+          ordered.colors=T,scale=c(1.25,0.1),random.order=F)
 
-
-data <- read.csv("allposts_fixed.csv",header=F)
-names(data) <- c("ID","string","score")
-rows <- which(data$score == 0)
-data <- data[sample(rows,10000),]
-corpus <- VCorpus(VectorSource(data$string))
-# Remove punctionation and convert to lowercase
-corpus <- tm_map(corpus, stripWhitespace)
-corpus <- tm_map(corpus,content_transformer(tolower))
-corpus <- tm_map(corpus,removePunctuation)
-corpus <- tm_map(corpus, removeWords, stopwords("english"))
-documentMatrix <- TermDocumentMatrix(corpus, control = list(minWordLength = 1))
-commonWords <- removeSparseTerms(x=documentMatrix, sparse=0.995)
-colorfunc <- colorRampPalette(c("#345290","#7f8182","#a7a9ac","#86c1ea"))
-
-m <- as.matrix(commonWords)
-v <- sort(rowSums(m), decreasing=T)
-documentNames <- names(v)
-d <- data.frame(word=documentNames, freq=v)
-wordcloud(d$word, d$freq, min.freq=1, col=colorfunc(length(d$word)),
-          ordered.colors=T,scale=c(5,0.75))
-
+keywords = c()
+keywordScores = c()
+for (documentIndex in 1:ncol(matrix)){
+  termFrequencies = matrix[,documentIndex]
+  termIndices = which(termFrequencies > 0)
+  if (length(termIndices) > 0) {
+    documentTFIDFs = data.frame()
+    words = c()
+    for (index in 1:length(termIndices)) {
+      termIndex = termIndices[index]
+      tf = termFrequencies[termIndex]
+      termIDF = d2$freq[which(d2$word == names(tf))]
+      tfidf = tf * termIDF
+      words = append(words,names(tf))
+      documentTFIDFs = rbind(documentTFIDFs,c(tfidf))
+    }
+    row.names(documentTFIDFs) = words
+    names(documentTFIDFs) <- c("score")
+    sortedDocument = order(documentTFIDFs$score, decreasing = T)
+    print(paste(rownames(documentTFIDFs)[sortedDocument[1]],documentTFIDFs[sortedDocument[1],]))
+    
+    keyword = rownames(documentTFIDFs)[sortedDocument[1]]
+    score =  documentTFIDFs[sortedDocument[1],1]
+    
+    if (keyword %in% keywords) {
+      index = which(keywords == keyword)
+      keywordScores[index] = keywordScores[index] + 1
+    } else {
+      keywords = append(keywords, keyword)
+      keywordScores  = append(keywordScores, 1)
+    }
+   
+  }
+}
+keywordData = data.frame(keyword = keywords, score=keywordScores)
+orderedIndices = order(keywordData$score, decreasing = T)
+#samples = sort(sample(orderedIndices,400),decreasing=F)
+samples = orderedIndices[1:400]
+wordcloud(keywordData$keyword[samples], 
+          keywordData$score[samples], 
+          min.freq=1, col=colorfunc(length(samples)),
+          ordered.colors=T,scale=c(3,0.1),random.order=F)
