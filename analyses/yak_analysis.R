@@ -122,18 +122,15 @@ lengths <- sapply(data$string,nchar)
 # Calculate the number of words per Yak
 words <- sapply(sapply(data$string, strsplit, " "), length)
 
+png("lexical_histogram.png", width=500, height=500)
 par(mfrow=c(2,1))
-probs1 <- hist(lengths,probability = T, breaks=50,
-     main="Number of Characters per Geneseo Yak",
-     xlab="Number of Characters")
-colors <- rep("white", length(probs1$mids))
-colors[which(probs1$density == max(probs1$density))] = "blue"
-probs1 <- hist(lengths,probability = T, breaks=50,col=colors,
+hist(lengths,probability = F,col="#345290",
                main="Number of Characters per Geneseo Yak",
                xlab="Number of Characters")
-
-hist(words,probability = T,breaks=50,
+hist(words,probability = F,col="#7f8182",
      main="Number of Words per Geneseo Yak",
      xlab="Number of Words")
-abline(v=median(words),col="blue")
 par(mfrow=c(1,1))
+dev.off()
+
+sentiments <- read.csv("../sentimentResults.csv",header=T)
