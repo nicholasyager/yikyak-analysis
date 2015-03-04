@@ -10,13 +10,19 @@ for (index in 1:length(packages)){
   }
 }
 
-data <- read.csv("savedyaks.csv",header=T,stringsAsFactors=F)
-names(data) <- c("ID","string","score")
+data <- read.csv("allposts.csv",header=F,stringsAsFactors=F)
+names(data) <- c("ID","User","string","score","lat","lon","date")
 data <- unique(data)
+
+data2 <- read.csv("savedyaks.csv", header=T, stringsAsFactors=F)
+names(data2) <- c("ID","string","score")
+data2 <- unique(data2)
 
 data$score <- as.numeric(data$score,na.rm=T)
 
-corpus <- VCorpus(VectorSource(data$string))
+strings <- append(data$string, data2$string)
+
+corpus <- VCorpus(VectorSource(strings))
 #inspect(corpus)
 # Remove punctionation and convert to lowercase
 corpus <- tm_map(corpus, stripWhitespace)
@@ -62,8 +68,6 @@ idf = log(ncol(matrix)/sort(rowSums(idfMatrix), decreasing=F))
 wordNames <- names(idf)
 d2 <- data.frame(word=wordNames, freq=idf)
 samples = sort(sample(1:nrow(d2),300),decreasing=F)
-wordcloud(d2$word[samples], d2$freq[samples], min.freq=1, col=colorfunc(length(samples)),
-          ordered.colors=T,scale=c(1.25,0.1),random.order=F)
 
 keywords = c()
 keywordScores = c()
@@ -134,3 +138,45 @@ par(mfrow=c(1,1))
 dev.off()
 
 sentiments <- read.csv("../sentimentResults.csv",header=T)
+
+barColors <- c("#905234","#7f8182","#345290")
+
+par(mar=c(5.1,4.1,2.1,2.1))
+barplot(table(sentiments$score)/nrow(sentiments),
+        names=c("Negative","Neutral","Positive"),
+        ylab="Proportion of Yaks",
+        xlab="Sentiment",
+        col=barColors
+        )
+abline(h=0)
+
+yaks <- table(sentiments$score)/nrow(sentiments)
+tweets <- c(0.3554217, 0.2791165, 0.3654618)
+
+labels <- rep(c("Negative","Neutral","Positive"),2)
+sources <- append(rep(c("Yak"),3),rep(c("Tweet"),3))
+vec <- append(yaks, tweets)
+
+df <- data.frame(source=sources, sentiment=labels, value=vec)
+
+barplot(rbind(yaks, tweets), beside=T,
+        names=c("Negative","Neutral","Positive"),
+        ylab="Proportion of Documents",
+        xlab="Sentiment",
+        legend=c("Yaks","Tweets"))
+abline(h=0)
+
+par(mar=c(5.1,4.1,2.1,2.1))
+barplot(tweets,
+        names=c("Negative","Neutral","Positive"),
+        ylab="Proportion of Tweets",
+        xlab="Sentiment",
+        col=barColors
+)
+
+
+
+barplot
+abline(h=0)
+
+

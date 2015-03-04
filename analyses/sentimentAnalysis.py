@@ -100,10 +100,11 @@ def loadCorpus(path):
         reader = csv.reader(csvfile,delimiter=',',quotechar='"')
         next(reader,None)
         for row in reader:
-            sentence = row[1].rstrip().lower()
+            sentence = row[0].rstrip().lower()
+
             if sentence not in corpus:
                 corpus.append(sentence)
-
+    
     return corpus
 
 def loadTraining(path):
@@ -120,28 +121,23 @@ def loadTraining(path):
     sentimentCounts = [0,0,0]
 
     with open(path,'r') as csvfile:
-        reader = csv.reader(csvfile,delimiter=',',quotechar="'")
-        next(reader,None)
-        for row in reader:
-            sentence = row[1].rstrip().lower()
-            grams = getNGrams(sentence)
-            if row[0] == "positive":
-                incrementIndex = 1
-            elif row[0] == "negative":
-                incrementIndex = 2
-            elif row[0] == "neutral":
-                incrementIndex = 3
 
-            for gram in grams:
-                if gram in sentiments:
-                    sentimentCounts[incrementIndex-1] += 1
-                    sentiments[gram][incrementIndex] +=1
-                    sentiments[gram][0] +=1
-                else:
-                    sentimentCounts[incrementIndex-1] += 1
-                    data = [1,0,0,0]
-                    data[incrementIndex] +=1
-                    sentiments[gram] = data
+        for line in csvfile:
+            sentiment = [1,0,0,0]
+            parts = line.rstrip().split(",")
+            print(parts)
+            if parts[2] == "positive":
+                sentiment[1] += 1
+                sentimentCounts[0] += 1
+            elif parts[2] == "negative":
+                sentiment[2] += 1
+                sentimentCounts[1] += 1
+            else:
+                sentiment[3] +=1 
+                sentimentCounts[2] += 1
+
+
+            sentiments[parts[0]] = sentiment
 
     return sentiments, sentimentCounts
 
@@ -165,12 +161,12 @@ def weightedRandom(lst):
         total += element
         if total >= reference:
             return index
-
+    print(lst)
     raise(Error)
 
 
 
-def getNGrams(string,n=3):
+def getNGrams(string,n=3,singles=True):
     words = string.split(" ")
 
     grams = []
@@ -178,16 +174,21 @@ def getNGrams(string,n=3):
     if len(words) == 1:
         return words
 
-    for m in range(n):
-        
-        m += 1
+    # Check for empty strings
+    keepWords = []
+    for word in words:
+        if word != "":
+            keepWords.append(word)
 
-        for index, word in enumerate(words):
-            if index == len(words)-(m-1):
-                break
+    words = keepWords
 
-            grams.append(" ".join(words[index:index+m]))
+    for index, word in enumerate(words):
+        if index == len(words)-(n-1):
+            break
 
+        grams.append(" ".join(words[index:index+n]))
+    if singles:
+        grams.extend(words)
 
     return grams
 
@@ -209,81 +210,122 @@ def main(corpusPath, stopwordPath, trainingPath):
 
     color = ["\x1B[32m","\x1B[31m","\x1B[34m", "\x1B[39m"]
 
-    exclude = set(string.punctuation)
-
     random.shuffle(corpus)
 
     output = open("sentimentResults.csv","w")
     output.write('"score","message"\n')
 
-    for docIndex, document in enumerate(corpus):
-        print(len(sentiments)," -- ",sentimentCounts)
-        documentScore = [1,1,1]
+    failLoop = 0
 
-        keywords = []
-        for word in document.split(" "):
-            if word not in stopwords and word != "":
-                keywords.append(word)
-                keywords.append(" ")
+    remaining = []
 
-        documentKeywords = "".join(keywords).rstrip()
+    newSentiments = {}
+    newSentimentCounts = [0,0,0]
 
-        strippedDocument = "".join([ch for ch in documentKeywords if ch not in exclude])
-        grams = getNGrams(strippedDocument)
-        nWords = len(document.split(" "))
+    while True:
 
-        haveData = 0
+        for docIndex, document in enumerate(corpus):
+            documentScore = [1,1,1]
 
-        for classifier in range(3):
-            classifierLikelihood = sentimentCounts[classifier] / sum(sentimentCounts)
-            for index, gram in enumerate(grams):
-            
-                if gram not in sentiments:
-                    continue
-
-                haveData += 1
-
-                likelihood = sentiments[gram][classifier+1] / sentiments[gram][0]
-                likelihood += 1/nWords
-                print(gram, likelihood)
-
-                classifierLikelihood *= likelihood
-
-            documentScore[classifier] = classifierLikelihood
-
-        if haveData == 0 and docIndex != 0:
-            corpus.append(document)
-            continue
-
-        documentScore = normalize(documentScore)
-        print(documentScore)
-
-        index = weightedRandom(documentScore)
-
-        if trainingPath == "None":
-            response = input("{0} \x1B[39m-- {1}? (y/n): ".format(document, sentimentOptions[index])) 
-
-            if response == "n":
-                index = int(input("Is this positive, negative, or neutral(0/1/2): "))
-
-        else:
-            print("{0} -- {1}".format(document,sentimentOptions[index]))
+            keywords = []
+            for word in document.split(" "):
+                #if word not in stopwords and word != "":
+                #    keywords.append(word)
+                #    keywords.append(" ")
+                if word != "":
+                    keywords.append(word)
+                    keywords.append(" ")
 
 
-        output.write("'{0}','{1}'\n".format(sentimentOptions[index],document.replace('"',"").replace("'","")))
+            documentKeywords = "".join(keywords).rstrip()
 
-        for gram in grams:
-            sentimentCounts[index] += 1
-            if gram in sentiments:
-                sentiments[gram][0] += 1
-                sentiments[gram][index+1] += 1
+            grams = getNGrams(documentKeywords)
+            nWords = len(document.split(" "))
+
+            haveData = 0
+
+
+            for classifier in range(3):
+                classifierLikelihood = sentimentCounts[classifier] / sum(sentimentCounts)
+                for index, gram in enumerate(grams):
+                
+                    if gram not in sentiments:
+                        continue
+
+                    haveData += 1
+
+                    print(gram, sentiments[gram])
+
+                    likelihood = sentiments[gram][classifier+1] / ( sentiments[gram][0])
+                    likelihood += 1/nWords
+                    classifierLikelihood *= likelihood
+
+                documentScore[classifier] = classifierLikelihood
+                
+            if haveData == 0 and failLoop >= 0:
+                remaining.append(document)
+                corpus.remove(document)
+                failLoop += 1
+                continue
+
+
+            print(len(sentiments)," -- ",sentimentCounts)
+
+            failLoop = 0
+            corpus.remove(document)
+
+            documentScore = normalize(documentScore)
+            print(documentScore)
+
+            #index = weightedRandom(documentScore)
+            index = documentScore.index(max(documentScore))
+
+            if trainingPath == "None":
+                response = input("{0} \x1B[39m-- {1}? (y/n): ".format(document, sentimentOptions[index])) 
+
+                if response == "n":
+                    while True:
+                        try:
+                            index = int(input("Is this positive, negative, or neutral(0/1/2): "))
+                            break
+                        except ValueError:
+                            print("Incorrect response. Input numeric.")
 
             else:
-                data = [1,0,0,0]
-                data[index+1] = 1
-                sentiments[gram] = data 
-       
-    output.close()
+                print("{0} -- {1}".format(document,sentimentOptions[index]))
+
+
+            output.write('"{0}","{1}",{2}\n'.format(sentimentOptions[index],document.replace('"',"").replace("'","").replace(',',''),documentScore[index]))
+
+
+            """
+            No learning for now!
+            """
+            
+            grams = getNGrams(documentKeywords, singles=False)
+
+            for gram in grams:
+                newSentimentCounts[index] += 1
+                if gram in newSentiments:
+                    newSentiments[gram][0] += 1
+                    newSentiments[gram][index+1] += 1
+
+                else:
+                    data = [1,0,0,0]
+                    data[index+1] = 1
+                    newSentiments[gram] = data 
+          
+
+        if len(remaining) == 0:
+            output.close()
+            exit()
+        else:
+            input("Next iteration")
+            sentiments = dict(list(sentiments.items()) + \
+                              list(newSentiments.items()))
+            for index, count in enumerate(sentimentCounts):
+                sentimentCounts[index] += count
+            corpus = remaining
 
 
 if __name__ == "__main__":
@@ -291,9 +333,10 @@ if __name__ == "__main__":
     parser.add_argument('path', metavar='path', help="Path to the corpus")
     parser.add_argument('stopwordPath', metavar='stopwordPath',
                         help='Path to the stopword file.')
-    parser.add_argument('trainingPath', metavar='trainingPath', default="None",
-                        help='Path to training file')
+    parser.add_argument('--train', metavar='trainingPath', default="None",
+                        help='Path to emoji training file.')
     args = parser.parse_args()
 
-    main(args.path,args.stopwordPath,args.trainingPath)
+
+    main(args.path,args.stopwordPath,args.train)
 
