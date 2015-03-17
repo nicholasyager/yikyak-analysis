@@ -2,7 +2,7 @@
 
 Sentiment and text mining analysis on yaks collected from the 
 SUNY Geneseo Yik Yak communitiy. Yaks were gathered by using the
-python API module created by [djtech42][djtech24].
+python API module created by [djtech42][djtech42].
 
 You can view the report of these analyses [on my blog][blog]
 
